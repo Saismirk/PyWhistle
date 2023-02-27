@@ -1,0 +1,2 @@
+TKinterModernThemes~=1.9.3
+Pillow~=9.4.0
