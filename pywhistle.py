@@ -175,7 +175,7 @@ class Gui(ttk.Frame):
     def display_ui(self, parent):
         frame_inputs = ttk.Frame(parent)
         frame_inputs.pack(fill=X, padx=10, pady=10, anchor=N)
-        self.preview_image = ImageTk.PhotoImage(Image.open("default.png"))
+        self.preview_image = ImageTk.PhotoImage(Image.open("Resources/default.png"))
         self.tempo_pattern = re.compile(r"^[0-9]?\/[0-9]?$")
         frame_input = ttk.LabelFrame(frame_inputs, text="File Settings", padding=10)
         frame_input.pack(fill=X, padx=10, pady=5)
