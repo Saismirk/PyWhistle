@@ -4,7 +4,7 @@ from cx_Freeze import setup, Executable
 # Dependencies are automatically detected, but it might need fine tuning.
 build_exe_options = {"packages": ["tkinter", "PIL", "TKinterModernThemes"],
                      "includes": ["conversion_tools", "audio"],
-                     "include_files": ["default.png", "sf2/Tin_Whistle_AIR.sf2", "fluidsynth/", "LilyPond/"]}
+                     "include_files": ["Resources/", "fluidsynth/", "LilyPond/"]}
 
 # GUI applications require a different base on Windows (the default is for a console application).
 base = None

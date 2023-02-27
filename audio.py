@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-DEFAULT_SF2 = 'sf2/Tin_Whistle_AIR.sf2'
+DEFAULT_SF2 = 'Resources/sf2/Tin_Whistle_AIR.sf2'
 
 async def play_midi(midi_file):
     dirname = os.path.dirname(__file__)
