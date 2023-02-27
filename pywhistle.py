@@ -7,7 +7,7 @@ import TKinterModernThemes as tkmt
 from PIL import Image, ImageTk
 
 from audio import play_midi
-from convertion_tools import *
+from conversion_tools import *
 
 LABEL_WIDTH = 10
 KEYS = ["E", "Eb", "F", "D", "C", "B", "Bb", "A", "G#", "G", "Low F", "Low E", "Low Eb", "Low D", "Low C#", "Low C"]

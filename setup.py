@@ -3,7 +3,7 @@ from cx_Freeze import setup, Executable
 
 # Dependencies are automatically detected, but it might need fine tuning.
 build_exe_options = {"packages": ["tkinter", "PIL", "TKinterModernThemes"],
-                     "includes": ["convertion_tools", "audio"],
+                     "includes": ["conversion_tools", "audio"],
                      "include_files": ["default.png", "sf2/Tin_Whistle_AIR.sf2", "fluidsynth/", "LilyPond/"]}
 
 # GUI applications require a different base on Windows (the default is for a console application).
@@ -13,7 +13,7 @@ if sys.platform == "win32":
 
 setup(name="PyWhistle",
       version="0.1.1",
-      description="My GUI application",
+      description="Tin Whistle Music Sheet Tool based on LilyPond",
       options={"build_exe": build_exe_options},
-      executables=[Executable("main.py", base=base),
+      executables=[Executable("pywhistle.py", base=base),
                    ])

@@ -12,10 +12,10 @@ __pycache__/
 build/
 develop-eggs/
 dist/
-output.ly
-output.pdf
+*.ly
+*.pdf
 output.png
-output.mid
+*.mid
 downloads/
 eggs/
 .eggs/
