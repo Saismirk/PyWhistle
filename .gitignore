@@ -15,6 +15,7 @@ dist/
 *.ly
 *.pdf
 output.png
+key_generator.py
 *.mid
 downloads/
 eggs/
