@@ -335,12 +335,17 @@ class Sheet:
         return lilypath
 
     def output_pdf(self, filename="output"):
-        subprocess.call([self.get_output(filename), "-o", os.path.dirname(filename), f"{filename}.ly"])
+        subprocess.call([self.get_output(filename), "-o", os.path.dirname(filename), f"{filename}.ly"], shell=False)
         return filename + ".pdf"
 
     def output_png(self, filename="output"):
         path = self.get_output(filename)
-        subprocess.call([path, "--png", "-dresolution=90", "-o", os.path.dirname(filename), f"{filename}.ly"])
+        #Hide console on subprocess call
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        subprocess.call([path, "--png", "-dresolution=90", "-o", os.path.dirname(filename), f"{filename}.ly"],
+                        shell=False,
+                        startupinfo=startupinfo)
         return filename + ".png"
 
     def __str__(self) -> str:
