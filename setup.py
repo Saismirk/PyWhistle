@@ -13,7 +13,6 @@ if sys.platform == "win32":
 
 setup(name="PyWhistle",
       version="0.1.1",
-      icon="Resources/icon.ico",
       description="Tin Whistle Music Sheet Tool based on LilyPond",
       options={"build_exe": build_exe_options},
-      executables=[Executable("pywhistle.py", base=base)])
+      executables=[Executable("pywhistle.py", base=base, icon="Resources/icon.ico")])
