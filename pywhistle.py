@@ -80,9 +80,12 @@ class Gui(ttk.Frame):
         self.tempo_pattern = None
         self.preview_image = None
         self.gen_png_proc = None
+        self.notes_help_frame = None
+        self.notes_tree = None
         self.parent = parent
         self.parent.title("Tin Whistle Tab Tools v0.1.1")
         self.key = StringVar()
+        self.key.trace("w", lambda name, index, mode: self.update_note_tree())
         self.key.set(KEYS[1])
 
     def take_input(self):
@@ -92,9 +95,7 @@ class Gui(ttk.Frame):
         sheet.set_time(self.time.get())
         sheet.set_tempo(self.tempo.get())
         sheet.add_notes(notes)
-        sheet.header.set_title(self.title.get()
-                               ).set_composer(self.composer.get()
-                                              ).set_tag(self.copyright.get())
+        sheet.header.set_title(self.title.get()).set_composer(self.composer.get()).set_tag(self.copyright.get())
         return sheet
 
     def gen_pdf(self):
@@ -317,6 +318,26 @@ class Gui(ttk.Frame):
         self.inputtxt.insert(1.0, save.notes)
         self.parent.title(f"PyWhistle - {save.filename}")
 
+    def update_note_tree(self):
+        if self.notes_help_frame is None or self.notes_tree is None:
+            return
+        self.notes_help_frame.config(text=f"Note Reference {self.key.get()}")
+        self.notes_tree.delete(*self.notes_tree.get_children())
+        key = None
+        for whistle_key in TIN_WHISTLE_KEYS:
+            if whistle_key.name == self.key.get():
+                key = whistle_key
+                break
+        notes = sorted(key.notes, key=lambda x: x < "8", reverse=True)
+        for note in notes:
+            try:
+                note_symbol = NOTE_DICT[key.notes[note].strip("\'").strip(",")]
+                if note.endswith("+") | note.endswith("8"):
+                    note_symbol = note_symbol.upper()
+                self.notes_tree.insert("", "end", values=(note, note_symbol))
+            except KeyError:
+                pass
+
     def display_ui(self, parent):
         self.main_frame = ttk.Frame(parent)
         self.main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
@@ -367,39 +388,23 @@ class Gui(ttk.Frame):
         notes_frame = ttk.Frame(self.notebook, padding=5)
         notes_frame.pack(fill=BOTH, padx=10, pady=5, anchor=N)
 
-        self.inputtxt, notes_input_frame = self.scrollable_text_field(notes_frame,
-                                                                      5,
-                                                                      default="")
+        self.inputtxt, notes_input_frame = self.scrollable_text_field(notes_frame, 5, default="")
 
-        notes_help_frame = ttk.LabelFrame(notes_frame, padding=5, text=f"Notation Help {self.key.get()}")
-        notes_help_frame.pack(fill=Y, padx=10, pady=5, side=RIGHT, anchor=N)
-        notes_tree = ttk.Treeview(notes_help_frame)
-        scrollbar = ttk.Scrollbar(notes_help_frame, orient=VERTICAL, command=notes_tree.yview)
+        self.notes_help_frame = ttk.LabelFrame(notes_frame, padding=5, text=f"Notation Help {self.key.get()}")
+        self.notes_help_frame.pack(fill=Y, padx=10, pady=5, side=RIGHT, anchor=N)
+        self.notes_tree = ttk.Treeview(self.notes_help_frame)
+        scrollbar = ttk.Scrollbar(self.notes_help_frame, orient=VERTICAL, command=self.notes_tree.yview)
         scrollbar.pack(side=RIGHT, fill=Y)
-        notes_tree.configure(yscrollcommand=scrollbar.set)
-        notes_tree.pack(fill=BOTH, padx=10, pady=5, side=TOP, anchor=N, expand=True)
-        notes_tree["columns"] = ("Symbol", "Note")
-        notes_tree.column("#0", width=0, stretch=NO)
-        notes_tree.column("Symbol", anchor=CENTER, width=80)
-        notes_tree.column("Note", anchor=CENTER, width=80)
-        notes_tree.heading("#0", text="", anchor=CENTER)
-        notes_tree.heading("Symbol", text="Holes", anchor=CENTER)
-        notes_tree.heading("Note", text="Note", anchor=CENTER)
-        key = None
-        for Tkey in TIN_WHISTLE_KEYS:
-            if Tkey.name == self.key.get():
-                key = Tkey
-                break
-        # Sort notes by note name
-        notes = sorted(key.notes, key=lambda x: x < "8", reverse=True)
-        for note in notes:
-            try:
-                note_symbol = NOTE_DICT[key.notes[note].strip("\'").strip(",")]
-                if note.endswith("+") | note.endswith("8"):
-                    note_symbol = note_symbol.upper()
-                notes_tree.insert("", "end", values=(note, note_symbol))
-            except KeyError:
-                pass
+        self.notes_tree.configure(yscrollcommand=scrollbar.set)
+        self.notes_tree.pack(fill=BOTH, padx=10, pady=5, side=TOP, anchor=N, expand=True)
+        self.notes_tree["columns"] = ("Symbol", "Note")
+        self.notes_tree.column("#0", width=0, stretch=NO)
+        self.notes_tree.column("Symbol", anchor=CENTER, width=80)
+        self.notes_tree.column("Note", anchor=CENTER, width=80)
+        self.notes_tree.heading("#0", text="", anchor=CENTER)
+        self.notes_tree.heading("Symbol", text="Holes", anchor=CENTER)
+        self.notes_tree.heading("Note", text="Note", anchor=CENTER)
+        self.update_note_tree()
 
         self.notebook.add(notes_frame, text="Notes")
         self.notebook.add(self.frame_inputs, text="Document Settings")
