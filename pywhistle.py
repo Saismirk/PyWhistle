@@ -278,7 +278,7 @@ class Gui(ttk.Frame):
 
         if self.save_file_path:
             self.opened_file_data.save(self.save_file_path)
-            self.parent.title("PyWhistle - " + self.opened_file_data.filename)
+            self.parent.title("PyWhistle - " + os.path.basename(self.save_file_path))
             self.document_dirty = False
 
     def save_file_as(self):
@@ -293,13 +293,14 @@ class Gui(ttk.Frame):
         if new_path:
             self.save_file_path = new_path
             self.opened_file_data.save(self.save_file_path)
-            self.parent.title("PyWhistle - " + self.opened_file_data.filename)
+            self.parent.title("PyWhistle - " + os.path.basename(self.save_file_path))
             self.document_dirty = False
 
     def load_file(self):
         load_path = filedialog.askopenfilename(initialdir=os.getcwd(), defaultextension=".json", filetypes=[("JSON", "*.json")])
         if load_path:
             save = PyWhistleSave.load(load_path)
+            self.parent.title("PyWhistle - " + os.path.basename(load_path))
             self.apply_file_settings(save)
 
     def apply_file_settings(self, save: PyWhistleSave):
@@ -316,7 +317,6 @@ class Gui(ttk.Frame):
         self.key.set(save.key)
         self.inputtxt.delete(1.0, END)
         self.inputtxt.insert(1.0, save.notes)
-        self.parent.title(f"PyWhistle - {save.filename}")
 
     def update_note_tree(self):
         if self.notes_help_frame is None or self.notes_tree is None:
