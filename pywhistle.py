@@ -62,6 +62,8 @@ class ScrollableFrame(ttk.Frame):
 class Gui(ttk.Frame):
     def __init__(self, parent):
         ttk.Frame.__init__(self)
+        self.save_file_path = None
+        self.opened_file_data = None
         self.sizegrip = None
         self.preview_frame = None
         self.settings_checkbutton = None
@@ -77,21 +79,19 @@ class Gui(ttk.Frame):
         self.title = None
         self.tempo_pattern = None
         self.preview_image = None
+        self.gen_png_proc = None
         self.parent = parent
         self.parent.title("Tin Whistle Tab Tools v0.1.1")
         self.key = StringVar()
         self.key.set(KEYS[1])
 
     def take_input(self):
-        NOTES = self.inputtxt.get("1.0", "end-1c")
-        if NOTES == "":
-            return None
-        print(NOTES)
+        notes = self.inputtxt.get("1.0", "end-1c")
         sheet = create()
         sheet.set_key(self.key.get())
         sheet.set_time(self.time.get())
         sheet.set_tempo(self.tempo.get())
-        sheet.add_notes(NOTES)
+        sheet.add_notes(notes)
         sheet.header.set_title(self.title.get()
                                ).set_composer(self.composer.get()
                                               ).set_tag(self.copyright.get())
@@ -118,11 +118,11 @@ class Gui(ttk.Frame):
         self.update_png(output)
 
     def gen_preview_png(self):
-        sheet = self.take_input()
-        if sheet == None:
-            return
-        output = sheet.output_png(os.getcwd() + "/" + "preview")
-        self.update_png(output)
+        self.sheet = self.take_input()
+        self.run_gen_png()
+
+    def run_gen_png(self):
+        self.sheet.output_png(os.getcwd() + "/" + "preview", self.update_png)
 
     def gen_midi(self):
         sheet = self.take_input()
@@ -160,11 +160,12 @@ class Gui(ttk.Frame):
     def text_change_update_preview(self, event):
         if self.inputtxt.edit_modified():
             self.gen_preview_png()
+            self.document_dirty = True
         self.inputtxt.edit_modified(False)
 
     def scrollable_text_field(self, frame, height=100, default=""):
         f = ttk.Frame(frame, padding=10)
-        f.pack(fill=X, expand=True, padx=10, pady=5, anchor=N)
+        f.pack(fill=X, expand=True, padx=10, pady=5, anchor=N, side=LEFT)
         txt = Text(f, highlightthickness=0, bd=0, undo=True, wrap=WORD)
         txt.insert(END, default)
         txt.config(height=height)
@@ -224,11 +225,18 @@ class Gui(ttk.Frame):
         if value_if_allowed:
             try:
                 matches = self.tempo_pattern.findall(str(value_if_allowed))
-                return len(matches) == 1
+                return re.match(self.tempo_pattern, str(value_if_allowed)) and float(matches[0]) > 0
             except ValueError:
                 return False
         else:
             return False
+
+    @staticmethod
+    def set_entry_value(entry: Entry, value):
+        entry.configure(validate="none")
+        entry.delete(0, END)
+        entry.insert(0, value)
+        entry.configure(validate='key')
 
     def options_field(self, label, frame, *options):
         options_frame = ttk.Frame(frame)
@@ -244,13 +252,48 @@ class Gui(ttk.Frame):
         else:
             self.main_frame.pack_forget()
 
-    def save_file(self):
-        save = PyWhistleSave(self.filename.get(), self.output_directory.get(), self.composer.get(), self.copyright.get(),
-                             self.title.get(), self.inputtxt.get(1.0, END), self.time.get(), self.tempo.get(), self.key.get())
+    def set_new_file(self):
+        self.save_file_path = None
+        self.opened_file_data = None
+        self.filename.delete(0, END)
+        self.output_directory.delete(0, END)
+        self.composer.delete(0, END)
+        self.copyright.delete(0, END)
+        self.title.delete(0, END)
+        self.inputtxt.delete(1.0, END)
+        self.set_entry_value(self.time, "4/4")
+        self.set_entry_value(self.tempo, "90")
+        self.key.set(KEYS[1])
+        self.save_file_path = None
+        self.opened_file_data = None
+        self.parent.title("PyWhistle - New File")
 
-        save_path = filedialog.asksaveasfilename(initialdir=os.getcwd(), defaultextension=".json", filetypes=[("JSON", "*.json")])
-        if save_path:
-            save.save(save_path)
+    def save_file(self):
+        if not self.opened_file_data:
+            self.save_file_as()
+            return
+        self.opened_file_data = PyWhistleSave(self.filename.get(), self.output_directory.get(), self.composer.get(), self.copyright.get(),
+                                              self.title.get(), self.inputtxt.get(1.0, END), self.time.get(), self.tempo.get(), self.key.get())
+
+        if self.save_file_path:
+            self.opened_file_data.save(self.save_file_path)
+            self.parent.title("PyWhistle - " + self.opened_file_data.filename)
+            self.document_dirty = False
+
+    def save_file_as(self):
+        self.opened_file_data = PyWhistleSave(self.filename.get(), self.output_directory.get(), self.composer.get(), self.copyright.get(),
+                                              self.title.get(), self.inputtxt.get(1.0, END), self.time.get(), self.tempo.get(), self.key.get())
+
+        if self.save_file_path:
+            new_path = filedialog.asksaveasfilename(initialdir=os.path.dirname(self.save_file_path),
+                                                               defaultextension=".json", filetypes=[("JSON", "*.json")])
+        else:
+            new_path = filedialog.asksaveasfilename(initialdir=os.getcwd(), defaultextension=".json", filetypes=[("JSON", "*.json")])
+        if new_path:
+            self.save_file_path = new_path
+            self.opened_file_data.save(self.save_file_path)
+            self.parent.title("PyWhistle - " + self.opened_file_data.filename)
+            self.document_dirty = False
 
     def load_file(self):
         load_path = filedialog.askopenfilename(initialdir=os.getcwd(), defaultextension=".json", filetypes=[("JSON", "*.json")])
@@ -267,29 +310,36 @@ class Gui(ttk.Frame):
         self.copyright.insert(0, save.copyright)
         self.output_directory.delete(0, END)
         self.output_directory.insert(0, save.output_directory)
-        self.tempo.delete(0, END)
-        self.tempo.insert(0, save.tempo)
+        self.set_entry_value(self.tempo, save.tempo)
+        self.set_entry_value(self.time, save.time)
         self.key.set(save.key)
-        self.time.delete(0, END)
-        self.time.insert(0, save.time)
         self.inputtxt.delete(1.0, END)
         self.inputtxt.insert(1.0, save.notes)
+        self.parent.title(f"PyWhistle - {save.filename}")
 
     def display_ui(self, parent):
         self.main_frame = ttk.Frame(parent)
         self.main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
 
-        notes_buttons_frame = ttk.Frame(self.main_frame)
+        notes_buttons_frame = ttk.Frame(self.main_frame, width=100)
         notes_buttons_frame.pack(fill=X, padx=10, pady=5, side=TOP, anchor=N)
         file_menu = ttk.Menubutton(notes_buttons_frame, text="File")
         file_menu.menu = Menu(file_menu, tearoff=0)
         file_menu["menu"] = file_menu.menu
-        file_menu.menu.add_command(label="Save", command=lambda: self.save_file())
-        file_menu.menu.add_command(label="Load", command=lambda: self.load_file())
-        file_menu.menu.add_command(label="Generate PNG", command=lambda: self.gen_png())
-        file_menu.menu.add_command(label="Generate MIDI", command=lambda: self.gen_midi())
-        file_menu.menu.add_command(label="Generate PDF", command=lambda: self.gen_pdf())
+        file_menu.menu.add_command(label="New", command=lambda: self.set_new_file(), accelerator="Ctrl+N")
+        file_menu.menu.add_command(label="Save", command=lambda: self.save_file(), accelerator="Ctrl+S")
+        file_menu.menu.add_command(label="Save As..", command=lambda: self.save_file_as())
+        file_menu.menu.add_command(label="Load", command=lambda: self.load_file(), accelerator="Ctrl+L")
+        file_menu.menu.add_command(label="Generate PNG", command=lambda: self.gen_png(), accelerator="Ctrl+G")
+        file_menu.menu.add_command(label="Generate MIDI", command=lambda: self.gen_midi(), accelerator="Ctrl+M")
+        file_menu.menu.add_command(label="Generate PDF", command=lambda: self.gen_pdf(), accelerator="Ctrl+P")
         file_menu.pack(fill=X, padx=10, pady=0, side=LEFT, expand=False)
+        self.parent.bind_all("<Control-n>", lambda event: self.set_new_file())
+        self.parent.bind_all("<Control-s>", lambda event: self.save_file())
+        self.parent.bind_all("<Control-l>", lambda event: self.load_file())
+        self.parent.bind_all("<Control-g>", lambda event: self.gen_png())
+        self.parent.bind_all("<Control-m>", lambda event: self.gen_midi())
+        self.parent.bind_all("<Control-p>", lambda event: self.gen_pdf())
 
         self.notebook = ttk.Notebook(self.main_frame)
         self.notebook.pack(fill=BOTH, expand=True, padx=10, pady=10)
@@ -319,11 +369,40 @@ class Gui(ttk.Frame):
 
         self.inputtxt, notes_input_frame = self.scrollable_text_field(notes_frame,
                                                                       5,
-                                                                      # default="1q.5+q'12 3q55 1q.5+q'13 2q. 6+q'12 32176+1 252q7q''12q' 3q.2q'435w4q'321q 5+q'1235")
-                                                                      default="654")
+                                                                      default="")
+
+        notes_help_frame = ttk.LabelFrame(notes_frame, padding=5, text=f"Notation Help {self.key.get()}")
+        notes_help_frame.pack(fill=Y, padx=10, pady=5, side=RIGHT, anchor=N)
+        notes_tree = ttk.Treeview(notes_help_frame)
+        scrollbar = ttk.Scrollbar(notes_help_frame, orient=VERTICAL, command=notes_tree.yview)
+        scrollbar.pack(side=RIGHT, fill=Y)
+        notes_tree.configure(yscrollcommand=scrollbar.set)
+        notes_tree.pack(fill=BOTH, padx=10, pady=5, side=TOP, anchor=N, expand=True)
+        notes_tree["columns"] = ("Symbol", "Note")
+        notes_tree.column("#0", width=0, stretch=NO)
+        notes_tree.column("Symbol", anchor=CENTER, width=80)
+        notes_tree.column("Note", anchor=CENTER, width=80)
+        notes_tree.heading("#0", text="", anchor=CENTER)
+        notes_tree.heading("Symbol", text="Holes", anchor=CENTER)
+        notes_tree.heading("Note", text="Note", anchor=CENTER)
+        key = None
+        for Tkey in TIN_WHISTLE_KEYS:
+            if Tkey.name == self.key.get():
+                key = Tkey
+                break
+        # Sort notes by note name
+        notes = sorted(key.notes, key=lambda x: x < "8", reverse=True)
+        for note in notes:
+            try:
+                note_symbol = NOTE_DICT[key.notes[note].strip("\'").strip(",")]
+                if note.endswith("+") | note.endswith("8"):
+                    note_symbol = note_symbol.upper()
+                notes_tree.insert("", "end", values=(note, note_symbol))
+            except KeyError:
+                pass
 
         self.notebook.add(notes_frame, text="Notes")
-        self.notebook.add(self.frame_inputs, text="Output")
+        self.notebook.add(self.frame_inputs, text="Document Settings")
 
         self.preview_toggle_frame = ttk.Frame(self.parent)
         self.preview_toggle_frame.pack(fill=X, padx=10, pady=5, anchor=N)
@@ -352,6 +431,7 @@ if __name__ == "__main__":
         window.root.geometry("900x1000")
 
         app.display_ui(window.root)
+        app.set_new_file()
         window.run(cleanresize=True)
     except Exception as e:
         print(e)

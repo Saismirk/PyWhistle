@@ -14,7 +14,8 @@ develop-eggs/
 dist/
 *.ly
 *.pdf
-output.png
+*.png
+*.json
 key_generator.py
 *.mid
 downloads/

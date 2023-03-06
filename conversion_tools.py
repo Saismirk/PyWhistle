@@ -2,6 +2,7 @@ import json
 import subprocess
 import os
 import re
+import threading
 from dataclasses import dataclass
 from typing import Dict, Tuple
 
@@ -43,7 +44,7 @@ def decode_key(key):
     return key
 
 
-def get_keys():
+def get_keys() -> list[TinWhistleKey]:
     with open('Resources/keys.json') as f:
         keys = json.load(f, object_hook=decode_key)
     return keys
@@ -97,7 +98,7 @@ TIN_WHISTLE_HOLES = {
     5: tw_hole_markup(1, 1, 1, 1, 1, 0),
     -5: tw_hole_markup(1, 1, 1, 1, -1, 0),
     6: tw_hole_markup(1, 1, 1, 1, 1, 1),
-    -6: tw_hole_markup(1, 1, 1, 1, 1, 1),
+    -6: tw_hole_markup(1, 1, 1, 1, 1, -1),
     7: tw_hole_markup(0, 1, 1, 0, 0, 0),
     8: tw_hole_markup(0, 1, 1, 1, 1, 1),
 }
@@ -186,6 +187,26 @@ KEY_DICT = {
     "Loe E": "e,",
 }
 
+NOTE_DICT = {
+    "c": "c",
+    "cis": "c♯/d♭",
+    "des": "c♯/d♭",
+    "d": "d",
+    "dis": "d♯/e♭",
+    "ees": "d♯/e♭",
+    "e": "e",
+    "f": "f",
+    "fis": "f♯/g♭",
+    "ges": "f♯/g♭",
+    "g": "g",
+    "gis": "g♯/a♭",
+    "aes": "g♯/a♭",
+    "a": "a",
+    "ais": "a♯/b♭",
+    "bes": "a♯/b♭",
+    "b": "b",
+}
+
 
 def get_note_name(hole: str, note: Tuple[str, str, str], rhythm: str, key: TinWhistleKey) -> str:
     return note[0] + rhythm + key.get_note(hole)[2].replace("notemarkupid", note[1]) if hole[0] in key.notes else ""
@@ -222,7 +243,10 @@ class Staff:
         return self
 
     def add_notes(self, notes):
-        self.notes = ["\t\t" + get_note_name(note, n, t, get_key(self.key[0])) + "\n" for note, n, t in get_notes(self.key[0], notes)]
+        if notes:
+            self.notes = ["\t\t" + get_note_name(note, n, t, get_key(self.key[0])) + "\n" for note, n, t in get_notes(self.key[0], notes)]
+        else:
+            self.notes = ["\t\tr"]
         return self
 
     def get_staff(self):
@@ -283,7 +307,8 @@ class Title:
         return self
 
     def get_title(self):
-        body = "\\header {\n"
+        body = "\\version \"2.22.2\"\n"
+        body += "\\header {\n"
         body += "  title = \"" + self.title + "\"\n" if self.title != "" else ""
         body += "  composer = \"" + self.composer + "\"\n" if self.composer != "" else ""
         body += "  tagline = \"" + self.tagline + "\"\n" if self.tagline != "" else ""
@@ -296,6 +321,7 @@ class Title:
 
 class Sheet:
     def __init__(self) -> None:
+        self.subprocess_object = None
         self.staffs = None
         self.staff = Staff()
         self.header = Title()
@@ -329,7 +355,7 @@ class Sheet:
     def get_output(self, filename="output"):
         with open(f"{filename}.ly", "w") as f:
             f.write(self.get_header() + self.get_staff())
-        print(self.get_header() + self.get_staff())
+        # print(self.get_header() + self.get_staff())
         dirname = os.path.abspath(os.getcwd())
         lilypath = os.path.join(dirname, 'LilyPond/usr/bin/lilypond.exe')
         return lilypath
@@ -338,15 +364,31 @@ class Sheet:
         subprocess.call([self.get_output(filename), "-o", os.path.dirname(filename), f"{filename}.ly"], shell=False)
         return filename + ".pdf"
 
-    def output_png(self, filename="output"):
-        path = self.get_output(filename)
-        #Hide console on subprocess call
+    def output_png(self, filename="output", on_complete=None):
+        self.filename = filename
+        self.path = self.get_output(filename)
+        self.thread = threading.Thread(target=self.start_gen_png_subprocess, args=(self.path, filename, on_complete))
+        self.thread.start()
+        return filename + ".png"
+
+    def run_png_output(self):
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        subprocess.call([path, "--png", "-dresolution=90", "-o", os.path.dirname(filename), f"{filename}.ly"],
+        subprocess.call([self.path, "-djob-count=16", "--png", "-dresolution=90", "-o", os.path.dirname(self.filename), f"{self.filename}.ly"],
                         shell=False,
                         startupinfo=startupinfo)
-        return filename + ".png"
+
+    def start_gen_png_subprocess(self, path, filename, on_complete=None):
+        if self.subprocess_object is not None and self.subprocess_object.poll() is None:
+            return
+
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        args = [path, "-djob-count=16", "--png", "-dresolution=90", "-o", os.path.dirname(filename), f"{filename}.ly"]
+        self.subprocess_object = subprocess.Popen(args, shell=False, startupinfo=startupinfo)
+        self.subprocess_object.wait()
+        if on_complete is not None:
+            on_complete(filename + ".png")
 
     def __str__(self) -> str:
         return self.header.__str__() + self.staffs.__str__()
