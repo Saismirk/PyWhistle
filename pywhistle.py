@@ -13,6 +13,7 @@ from audio import play_midi
 from conversion_tools import *
 
 LABEL_WIDTH = 14
+SCROLL_LINE_FACTOR = 17
 KEYS = conversion_tools.AVAILABLE_KEYS
 KEYS.insert(0, "")
 
@@ -40,23 +41,37 @@ class PyWhistleSave:
         return PyWhistleSave(**data)
 
 
-class ScrollableFrame(ttk.Frame):
-    def __init__(self, container, *args, **kwargs):
-        super().__init__(container, *args, **kwargs)
-        canvas = Canvas(self)
-        scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
-        self.scrollable_frame = ttk.Frame(canvas)
+class ScrollableImage(ttk.Frame):
+    def __init__(self, master=None, **kw):
+        self.image = kw.pop('image', None)
+        super(ScrollableImage, self).__init__(master=master, **kw)
+        self.cnvs = Canvas(self, highlightthickness=0, **kw)
+        self.cnvs.create_image(0, 0, anchor='nw', image=self.image)
+        self.v_scroll = ttk.Scrollbar(self, orient='vertical')
+        self.cnvs.grid(row=0, column=0,  sticky='nsew')
+        self.v_scroll.grid(row=0, column=1, sticky='ns')
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
+        # Set the scrollbars to the canvas
+        self.cnvs.config(yscrollcommand=self.v_scroll.set)
+        # Set canvas view to the scrollbars
+        self.v_scroll.config(command=self.cnvs.yview)
+        # Assign the region to be scrolled
+        self.cnvs.config(scrollregion=self.cnvs.bbox('all'))
+        self.cnvs.bind_class(self.cnvs, "<MouseWheel>", self.mouse_scroll)
 
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")
-            )
-        )
-        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas.pack(side="left", fill=BOTH, expand=True)
-        scrollbar.pack(side="right", fill="y")
+    def update_image(self, image):
+        self.cnvs.delete("all")
+        self.cnvs.create_image(0, 0, anchor='nw', image=image)
+        self.cnvs.config(scrollregion=self.cnvs.bbox('all'))
+
+    def mouse_scroll(self, evt):
+        if evt.state == 0 :
+            # self.cnvs.yview_scroll(-1*(evt.delta), 'units') # For MacOS
+            self.cnvs.yview_scroll(int(-1*(evt.delta/120)), 'units') # For windows
+        if evt.state == 1:
+            # self.cnvs.xview_scroll(-1*(evt.delta), 'units') # For MacOS
+            self.cnvs.xview_scroll(int(-1*(evt.delta/120)), 'units') # For windows
 
 
 class Gui(ttk.Frame):
@@ -89,7 +104,7 @@ class Gui(ttk.Frame):
         self.key.set(KEYS[1])
 
     def take_input(self):
-        notes = self.inputtxt.get("1.0", "end-1c")
+        notes = str(self.inputtxt.get("1.0", "end-1c")).strip(" ").strip("\n")
         sheet = create()
         sheet.set_key(self.key.get())
         sheet.set_time(self.time.get())
@@ -107,9 +122,7 @@ class Gui(ttk.Frame):
 
     def update_png(self, image):
         self.preview_image = ImageTk.PhotoImage(Image.open(image))
-        self.preview.image = self.preview_image
-        self.preview.configure(image=self.preview_image)
-        self.preview.update()
+        self.preview.update_image(self.preview_image)
 
     def gen_png(self):
         sheet = self.take_input()
@@ -159,20 +172,47 @@ class Gui(ttk.Frame):
         return entry
 
     def text_change_update_preview(self, event):
-        if self.inputtxt.edit_modified():
+        self.check_scrollbar(event)
+        char = event.widget.get("insert linestart", "insert")
+        length = len(self.inputtxt.get("1.0", "end-1c"))
+        if char != "" and length > 0:
+            char = char[-1]
+            if char not in ["1", "2", "3", "4", "5", "6", "7", "8", "0", ",", "h", "q", "w", "\'"]:
+                self.inputtxt.edit_modified(False)
+                return
+            else:
+                self.gen_preview_png()
+                self.document_dirty = True
+                self.inputtxt.edit_modified(False)
+                return
+        if self.inputtxt.edit_modified() and length == 0:
             self.gen_preview_png()
             self.document_dirty = True
         self.inputtxt.edit_modified(False)
 
     def scrollable_text_field(self, frame, height=100, default=""):
-        f = ttk.Frame(frame, padding=10)
-        f.pack(fill=X, expand=True, padx=10, pady=5, anchor=N, side=LEFT)
-        txt = Text(f, highlightthickness=0, bd=0, undo=True, wrap=WORD)
-        txt.insert(END, default)
-        txt.config(height=height)
-        txt.bind("<<Modified>>", self.text_change_update_preview)
-        txt.pack(fill=BOTH, expand=True, padx=2, pady=2)
-        return txt, f
+        self.txt_frame = Canvas(frame, highlightthickness=0, bd=0)
+        self.txt_frame.pack(fill=BOTH, expand=True, padx=10, pady=5, anchor=N, side=LEFT)
+        self.txt_scrollbar = ttk.Scrollbar(self.txt_frame)
+        self.txt_scrollbar.pack(side=RIGHT, fill=Y)
+        self.txt_frame.configure(yscrollcommand=self.txt_scrollbar.set)
+        self.txt_scrollbar.configure(command=self.txt_frame.yview)
+        self.txt = Text(self.txt_frame, highlightthickness=0, bd=0, undo=True, wrap=WORD)
+        self.txt.insert(END, default)
+        self.txt.config(height=height)
+        self.txt.bind("<<Modified>>", self.text_change_update_preview)
+        self.txt.configure(yscrollcommand=self.txt_scrollbar.set)
+        self.txt.pack(fill=BOTH, expand=True, padx=2, pady=2)
+        self.txt_scrollbar.configure(command=self.txt.yview)
+        self.txt.bind("<Configure>", self.check_scrollbar)
+        return self.txt, self.txt_frame
+
+    def check_scrollbar(self, event):
+        lines = len(self.inputtxt.get("1.0", END).split('\n'))
+        if self.txt_frame.winfo_height()/SCROLL_LINE_FACTOR >= lines:
+            self.txt_scrollbar.pack_forget()
+        else:
+            self.txt_scrollbar.pack(side=RIGHT, fill=Y, before=self.txt)
 
     @staticmethod
     def generate_button(frame, label, command, side=LEFT):
@@ -183,12 +223,8 @@ class Gui(ttk.Frame):
     def display_image(self, image):
         self.preview_frame = ttk.LabelFrame(self.parent, text="Preview", padding=10)
         self.preview_frame.pack(fill=BOTH, expand=True, anchor=CENTER, padx=20, pady=2)
-        scroll_frame = ScrollableFrame(self.preview_frame)
-        label = Label(scroll_frame.scrollable_frame, text="Preview")
-        label.image = self.preview_image
-        label.configure(image=self.preview_image)
-        label.pack(fill=BOTH, expand=True, padx=10, pady=2)
-        scroll_frame.pack(fill=BOTH, expand=True, padx=10, pady=2, anchor=N)
+        label = ScrollableImage(self.preview_frame, image=self.preview_image)
+        label.pack(fill=BOTH, expand=True, padx=10, pady=10, anchor=CENTER, side=LEFT)
         return label
 
     def entry_field(self, label, frame, validation, width=4, default="0"):
@@ -399,8 +435,8 @@ class Gui(ttk.Frame):
         self.notes_tree.pack(fill=BOTH, padx=10, pady=5, side=TOP, anchor=N, expand=True)
         self.notes_tree["columns"] = ("Symbol", "Note")
         self.notes_tree.column("#0", width=0, stretch=NO)
-        self.notes_tree.column("Symbol", anchor=CENTER, width=80)
-        self.notes_tree.column("Note", anchor=CENTER, width=80)
+        self.notes_tree.column("Symbol", anchor=CENTER, width=40)
+        self.notes_tree.column("Note", anchor=CENTER, width=40)
         self.notes_tree.heading("#0", text="", anchor=CENTER)
         self.notes_tree.heading("Symbol", text="Holes", anchor=CENTER)
         self.notes_tree.heading("Note", text="Note", anchor=CENTER)

@@ -321,6 +321,7 @@ class Title:
 
 class Sheet:
     def __init__(self) -> None:
+        self.thread = None
         self.subprocess_object = None
         self.staffs = None
         self.staff = Staff()
@@ -367,6 +368,8 @@ class Sheet:
     def output_png(self, filename="output", on_complete=None):
         self.filename = filename
         self.path = self.get_output(filename)
+        if self.thread is not None and self.thread.is_alive():
+            self.thread.join()
         self.thread = threading.Thread(target=self.start_gen_png_subprocess, args=(self.path, filename, on_complete))
         self.thread.start()
         return filename + ".png"
@@ -379,12 +382,13 @@ class Sheet:
                         startupinfo=startupinfo)
 
     def start_gen_png_subprocess(self, path, filename, on_complete=None):
-        if self.subprocess_object is not None and self.subprocess_object.poll() is None:
+        if self.subprocess_object is not None:
+            self.subprocess_object.kill()
             return
 
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        args = [path, "-djob-count=16", "--png", "-dresolution=90", "-o", os.path.dirname(filename), f"{filename}.ly"]
+        args = [path, "-s", "-djob-count=16", "--png", "-dresolution=90", "-o", os.path.dirname(filename), f"{filename}.ly"]
         self.subprocess_object = subprocess.Popen(args, shell=False, startupinfo=startupinfo)
         self.subprocess_object.wait()
         if on_complete is not None:
