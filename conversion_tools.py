@@ -354,6 +354,7 @@ class Sheet:
         return self
 
     def get_output(self, filename="output"):
+        self.check_output_folder(filename)
         with open(f"{filename}.ly", "w") as f:
             f.write(self.get_header() + self.get_staff())
         # print(self.get_header() + self.get_staff())
@@ -374,18 +375,15 @@ class Sheet:
         self.thread.start()
         return filename + ".png"
 
-    def run_png_output(self):
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        subprocess.call([self.path, "-djob-count=16", "--png", "-dresolution=90", "-o", os.path.dirname(self.filename), f"{self.filename}.ly"],
-                        shell=False,
-                        startupinfo=startupinfo)
+    @staticmethod
+    def check_output_folder(filename):
+        if not os.path.exists(os.path.dirname(filename)):
+            os.makedirs(os.path.dirname(filename))
 
     def start_gen_png_subprocess(self, path, filename, on_complete=None):
         if self.subprocess_object is not None:
             self.subprocess_object.kill()
-            return
-
+        self.check_output_folder(filename)
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         args = [path, "-s", "-djob-count=16", "--png", "-dresolution=90", "-o", os.path.dirname(filename), f"{filename}.ly"]

@@ -52,11 +52,8 @@ class ScrollableImage(ttk.Frame):
         self.v_scroll.grid(row=0, column=1, sticky='ns')
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
-        # Set the scrollbars to the canvas
         self.cnvs.config(yscrollcommand=self.v_scroll.set)
-        # Set canvas view to the scrollbars
         self.v_scroll.config(command=self.cnvs.yview)
-        # Assign the region to be scrolled
         self.cnvs.config(scrollregion=self.cnvs.bbox('all'))
         self.cnvs.bind_class(self.cnvs, "<MouseWheel>", self.mouse_scroll)
 
@@ -128,15 +125,14 @@ class Gui(ttk.Frame):
         sheet = self.take_input()
         if sheet == None:
             return
-        output = sheet.output_png(self.output_directory.get() + "/" + self.filename.get())
-        self.update_png(output)
+        sheet.output_png(self.output_directory.get() + "/" + self.filename.get())
 
     def gen_preview_png(self):
         self.sheet = self.take_input()
-        self.run_gen_png()
+        self.run_gen_png(os.getcwd() + "/" + "preview")
 
-    def run_gen_png(self):
-        self.sheet.output_png(os.getcwd() + "/" + "preview", self.update_png)
+    def run_gen_png(self, path):
+        self.sheet.output_png(path, self.update_png)
 
     def gen_midi(self):
         sheet = self.take_input()
@@ -144,9 +140,8 @@ class Gui(ttk.Frame):
             return
         sheet.set_midi(True)
         fn = self.output_directory.get() + "/" + self.filename.get()
-        output = sheet.output_png(fn)
-        self.update_png(output)
-        asyncio.run(play_midi(fn + ".mid"))
+        sheet.output_png(fn)
+        play_midi(fn + ".mid")
 
     @staticmethod
     def text_field(frame, label, default="") -> ttk.Entry:
@@ -293,7 +288,9 @@ class Gui(ttk.Frame):
         self.save_file_path = None
         self.opened_file_data = None
         self.filename.delete(0, END)
+        self.filename.insert(0, "Output")
         self.output_directory.delete(0, END)
+        self.output_directory.insert(0, os.getcwd() + os.sep + "Output")
         self.composer.delete(0, END)
         self.copyright.delete(0, END)
         self.title.delete(0, END)
