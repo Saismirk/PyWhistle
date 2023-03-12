@@ -9,7 +9,7 @@ To build PyWhistle, follow these steps:
 1. Clone this repository to your local machine.
 2. Install the required packages by running `pip install -r requirements.txt`.
 3. Run `python .\setup.py build` to build the executable file.
-4. The resulting executable will be located in the `dist` directory.
+4. The resulting executable will be located in the `build` directory.
 
 ## Usage
 
