@@ -390,7 +390,20 @@ class Sheet:
         self.subprocess_object = subprocess.Popen(args, shell=False, startupinfo=startupinfo)
         self.subprocess_object.wait()
         if on_complete is not None:
-            on_complete(filename + ".png")
+            try:
+                on_complete(filename + ".png")
+            except Exception:
+                pass
+
+    @staticmethod
+    def count_temp_files_png() -> int:
+        temp_path = os.getcwd() + os.sep + "Temp"
+        if not os.path.exists(temp_path):
+            return 0
+        try:
+            return len([name for name in os.listdir(temp_path) if name.endswith(".png")])
+        except Exception:
+            return 0
 
     def __str__(self) -> str:
         return self.header.__str__() + self.staffs.__str__()

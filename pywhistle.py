@@ -48,7 +48,7 @@ class ScrollableImage(ttk.Frame):
         self.cnvs = Canvas(self, highlightthickness=0, **kw)
         self.cnvs.create_image(0, 0, anchor='nw', image=self.image)
         self.v_scroll = ttk.Scrollbar(self, orient='vertical')
-        self.cnvs.grid(row=0, column=0,  sticky='nsew')
+        self.cnvs.grid(row=0, column=0, sticky='nsew')
         self.v_scroll.grid(row=0, column=1, sticky='ns')
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
@@ -63,17 +63,18 @@ class ScrollableImage(ttk.Frame):
         self.cnvs.config(scrollregion=self.cnvs.bbox('all'))
 
     def mouse_scroll(self, evt):
-        if evt.state == 0 :
+        if evt.state == 0:
             # self.cnvs.yview_scroll(-1*(evt.delta), 'units') # For MacOS
-            self.cnvs.yview_scroll(int(-1*(evt.delta/120)), 'units') # For windows
+            self.cnvs.yview_scroll(int(-1 * (evt.delta / 120)), 'units')  # For windows
         if evt.state == 1:
             # self.cnvs.xview_scroll(-1*(evt.delta), 'units') # For MacOS
-            self.cnvs.xview_scroll(int(-1*(evt.delta/120)), 'units') # For windows
+            self.cnvs.xview_scroll(int(-1 * (evt.delta / 120)), 'units')  # For windows
 
 
 class Gui(ttk.Frame):
     def __init__(self, parent):
         ttk.Frame.__init__(self)
+        self.current_preview_page = 1
         self.save_file_path = None
         self.opened_file_data = None
         self.sizegrip = None
@@ -114,11 +115,19 @@ class Gui(ttk.Frame):
         sheet = self.take_input()
         if sheet == None:
             return
-        output = sheet.output_pdf(self.output_directory.get() + "/" + self.filename.get())
+        output = sheet.output_pdf(self.output_directory.get() + os.sep + self.filename.get())
         os.system(output)
 
-    def update_png(self, image):
-        self.preview_image = ImageTk.PhotoImage(Image.open(image))
+    def update_png(self, image_path: str):
+        self.page_count = self.count_temp_files_png()
+        self.page_counter.config(text=f"Page {self.current_preview_page}/{self.page_count}")
+        if self.page_count == 0:
+            return
+        self.current_preview_page = min(self.current_preview_page, self.page_count)
+        if self.page_count > 1:
+            image_path = image_path.replace("preview", f"preview-page{self.current_preview_page}")
+
+        self.preview_image = ImageTk.PhotoImage(Image.open(image_path))
         self.preview.update_image(self.preview_image)
 
     def gen_png(self):
@@ -128,15 +137,46 @@ class Gui(ttk.Frame):
         sheet.output_png(self.output_directory.get() + "/" + self.filename.get())
 
     def gen_preview_png(self):
+        self.clear_temp_folder()
         self.sheet = self.take_input()
-        self.run_gen_png(os.getcwd() + "/" + "preview")
+        self.run_gen_png(os.getcwd() + os.sep + "Temp" + os.sep + "preview")
+
+    @staticmethod
+    def clear_temp_folder():
+        temp_path = os.getcwd() + os.sep + "Temp"
+        if not os.path.exists(temp_path):
+            os.mkdir(temp_path)
+            return
+        try:
+            for file in os.listdir(temp_path):
+                os.remove(temp_path + os.sep + file)
+        except Exception:
+            pass
+
+    @staticmethod
+    def count_temp_files_png() -> int:
+        temp_path = os.getcwd() + os.sep + "Temp"
+        if not os.path.exists(temp_path):
+            return 0
+        try:
+            return len([name for name in os.listdir(temp_path) if name.endswith(".png")])
+        except Exception:
+            return 0
+
+    def set_next_page(self):
+        self.current_preview_page = min(self.current_preview_page + 1, self.page_count)
+        self.update_png(os.getcwd() + os.sep + "Temp" + os.sep + "preview.png")
+
+    def set_prev_page(self):
+        self.current_preview_page = max(self.current_preview_page - 1, 1)
+        self.update_png(os.getcwd() + os.sep + "Temp" + os.sep + "preview.png")
 
     def run_gen_png(self, path):
         self.sheet.output_png(path, self.update_png)
 
     def gen_midi(self):
         sheet = self.take_input()
-        if sheet == None:
+        if sheet is None:
             return
         sheet.set_midi(True)
         fn = self.output_directory.get() + "/" + self.filename.get()
@@ -167,23 +207,25 @@ class Gui(ttk.Frame):
         return entry
 
     def text_change_update_preview(self, event):
+        if self.inputtxt.edit_modified() == 0:
+            return
         self.check_scrollbar(event)
         char = event.widget.get("insert linestart", "insert")
         length = len(self.inputtxt.get("1.0", "end-1c"))
         if char != "" and length > 0:
             char = char[-1]
             if char not in ["1", "2", "3", "4", "5", "6", "7", "8", "0", ",", "h", "q", "w", "\'"]:
-                self.inputtxt.edit_modified(False)
+                self.inputtxt.edit_modified(0)
                 return
             else:
                 self.gen_preview_png()
                 self.document_dirty = True
-                self.inputtxt.edit_modified(False)
+                self.inputtxt.edit_modified(0)
                 return
-        if self.inputtxt.edit_modified() and length == 0:
+        if length == 0:
             self.gen_preview_png()
             self.document_dirty = True
-        self.inputtxt.edit_modified(False)
+        self.inputtxt.edit_modified(0)
 
     def scrollable_text_field(self, frame, height=100, default=""):
         self.txt_frame = Canvas(frame, highlightthickness=0, bd=0)
@@ -195,7 +237,6 @@ class Gui(ttk.Frame):
         self.txt = Text(self.txt_frame, highlightthickness=0, bd=0, undo=True, wrap=WORD)
         self.txt.insert(END, default)
         self.txt.config(height=height)
-        self.txt.bind("<<Modified>>", self.text_change_update_preview)
         self.txt.configure(yscrollcommand=self.txt_scrollbar.set)
         self.txt.pack(fill=BOTH, expand=True, padx=2, pady=2)
         self.txt_scrollbar.configure(command=self.txt.yview)
@@ -204,7 +245,7 @@ class Gui(ttk.Frame):
 
     def check_scrollbar(self, event):
         lines = len(self.inputtxt.get("1.0", END).split('\n'))
-        if self.txt_frame.winfo_height()/SCROLL_LINE_FACTOR >= lines:
+        if self.txt_frame.winfo_height() / SCROLL_LINE_FACTOR >= lines:
             self.txt_scrollbar.pack_forget()
         else:
             self.txt_scrollbar.pack(side=RIGHT, fill=Y, before=self.txt)
@@ -219,7 +260,7 @@ class Gui(ttk.Frame):
         self.preview_frame = ttk.LabelFrame(self.parent, text="Preview", padding=10)
         self.preview_frame.pack(fill=BOTH, expand=True, anchor=CENTER, padx=20, pady=2)
         label = ScrollableImage(self.preview_frame, image=self.preview_image)
-        label.pack(fill=BOTH, expand=True, padx=10, pady=10, anchor=CENTER, side=LEFT)
+        label.pack(fill=BOTH, expand=True, padx=10, pady=10, anchor=CENTER, side=BOTTOM)
         return label
 
     def entry_field(self, label, frame, validation, width=4, default="0"):
@@ -320,7 +361,7 @@ class Gui(ttk.Frame):
 
         if self.save_file_path:
             new_path = filedialog.asksaveasfilename(initialdir=os.path.dirname(self.save_file_path),
-                                                               defaultextension=".json", filetypes=[("JSON", "*.json")])
+                                                    defaultextension=".json", filetypes=[("JSON", "*.json")])
         else:
             new_path = filedialog.asksaveasfilename(initialdir=os.getcwd(), defaultextension=".json", filetypes=[("JSON", "*.json")])
         if new_path:
@@ -350,6 +391,7 @@ class Gui(ttk.Frame):
         self.key.set(save.key)
         self.inputtxt.delete(1.0, END)
         self.inputtxt.insert(1.0, save.notes)
+        self.gen_preview_png()
 
     def update_note_tree(self):
         if self.notes_help_frame is None or self.notes_tree is None:
@@ -422,6 +464,7 @@ class Gui(ttk.Frame):
         notes_frame.pack(fill=BOTH, padx=10, pady=5, anchor=N)
 
         self.inputtxt, notes_input_frame = self.scrollable_text_field(notes_frame, 5, default="")
+        self.inputtxt.bind("<<Modified>>", self.text_change_update_preview)
 
         self.notes_help_frame = ttk.LabelFrame(notes_frame, padding=5, text=f"Notation Help {self.key.get()}")
         self.notes_help_frame.pack(fill=Y, padx=10, pady=5, side=RIGHT, anchor=N)
@@ -451,6 +494,16 @@ class Gui(ttk.Frame):
                         command=self.toggle_settings).pack(fill=X, padx=10, pady=5, anchor=S)
 
         self.preview = self.display_image(None)
+
+        pages_frame = ttk.Frame(self.preview_frame)
+        pages_frame.pack(fill=X, padx=10, pady=5, anchor=CENTER, side=TOP, expand=True)
+
+        prev_page_button = ttk.Button(pages_frame, text="<", command=self.set_prev_page, style="Circular.TButton")
+        prev_page_button.pack(fill=X, padx=10, pady=5, side=LEFT, anchor=CENTER)
+        self.page_counter = ttk.Label(pages_frame, text="Page 1/1")
+        self.page_counter.pack(fill=X, padx=10, pady=5, side=LEFT, anchor=CENTER)
+        next_page_button = ttk.Button(pages_frame, text=">", command=self.set_next_page, style="Circular.TButton")
+        next_page_button.pack(fill=X, padx=10, pady=5, side=LEFT, anchor=CENTER)
 
         self.sizegrip = ttk.Sizegrip(parent)
         self.sizegrip.pack(padx=(0, 5), pady=(0, 5), side=RIGHT, anchor=SE)
