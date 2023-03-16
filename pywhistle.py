@@ -344,7 +344,7 @@ class Gui(ttk.Frame):
         self.parent.title("PyWhistle - New File")
 
     def save_file(self):
-        if not self.opened_file_data:
+        if self.opened_file_data is None:
             self.save_file_as()
             return
         self.opened_file_data = PyWhistleSave(self.filename.get(), self.output_directory.get(), self.composer.get(), self.copyright.get(),
@@ -363,12 +363,16 @@ class Gui(ttk.Frame):
             new_path = filedialog.asksaveasfilename(initialdir=os.path.dirname(self.save_file_path),
                                                     defaultextension=".json", filetypes=[("JSON", "*.json")])
         else:
-            new_path = filedialog.asksaveasfilename(initialdir=os.getcwd(), defaultextension=".json", filetypes=[("JSON", "*.json")])
+            new_path = filedialog.asksaveasfilename(initialdir=os.getcwd(), title="Save File As", defaultextension=".json", filetypes=[("JSON", "*.json")])
         if new_path:
             self.save_file_path = new_path
             self.opened_file_data.save(self.save_file_path)
             self.parent.title("PyWhistle - " + os.path.basename(self.save_file_path))
             self.document_dirty = False
+            return
+
+        self.save_file_path = None
+        self.opened_file_data = None
 
     def load_file(self):
         load_path = filedialog.askopenfilename(initialdir=os.getcwd(), defaultextension=".json", filetypes=[("JSON", "*.json")])
